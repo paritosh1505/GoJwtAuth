@@ -15,6 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -49,6 +50,10 @@ func GetUsesrDetail() gin.HandlerFunc {
 		userval := c.Param("userId")
 	}
 }
+func HashPassword(password string) string {
+	passwordEncrypt, _ := bcrypt.GenerateFromPassword([]byte(password))
+	return string(passwordEncrypt)
+}
 func SingupUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var userStruct Model.UserDb
@@ -77,6 +82,8 @@ func SingupUser() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"Error": "This user email already exist"})
 			return
 		}
+		crypticpwd := HashPassword(*userStruct.Password)
+		userStruct.Password = &crypticpwd
 		userStruct.UpdatedAt = time.Now()
 		userStruct.CreatedAt = time.Now()
 		userStruct.Id = primitive.NewObjectID()
@@ -117,9 +124,41 @@ func Login() gin.HandlerFunc {
 		c.JSON(http.StatusAccepted, gin.H{"Message": "Login Successfully"})
 		defer cancel()
 
+		if userExpected.Email == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"Error": "emal not found"})
+			log.Panic("Error in missing email")
+		}
+		access_token, refresh_token, _ := helper.TokenGeneration(*userExpected.Name, *userExpected.Email)
+		UpdateTokenAfterLogin(access_token, refresh_token, userExpected.User_id)
+
 	}
 }
+func UpdateTokenAfterLogin(access_token string, refresh_token string, userid string) {
+	contextval, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+	var ValueEnter bson.D
 
+	ValueEnter = append(ValueEnter, bson.E{Key: "Token_gen", Value: access_token})
+	ValueEnter = append(ValueEnter, bson.E{Key: "refresh_token", Value: refresh_token})
+	UpdatedAt := time.Now()
+	ValueEnter = append(ValueEnter, bson.E{Key: "UpdateAt", Value: UpdatedAt})
+	filterEntry := bson.E{Key: "User_id", Value: userid}
+	upserStatus := true
+	noDocPresentThenUpdatea := options.UpdateOptions{
+		Upsert: &upserStatus,
+	}
+	_, err := TableOpen.UpdateOne(
+		contextval,
+		filterEntry,
+		bson.D{
+			{Key: "$set", Value: ValueEnter},
+		},
+		&noDocPresentThenUpdatea,
+	)
+	if err != nil {
+		log.Fatal("Error while updating the data")
+	}
+
+}
 func CheckPassword(actualPwd string, expectedPwd string) bool {
 	status := true
 	erroval := bcrypt.CompareHashAndPassword([]byte(actualPwd), []byte(expectedPwd))
