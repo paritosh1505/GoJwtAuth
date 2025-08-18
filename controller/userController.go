@@ -8,6 +8,7 @@ import (
 	"jwtauth/helper"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -45,13 +46,9 @@ func GetUserDetail() gin.HandlerFunc {
 
 	}
 }
-func GetUsesrDetail() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userval := c.Param("userId")
-	}
-}
+
 func HashPassword(password string) string {
-	passwordEncrypt, _ := bcrypt.GenerateFromPassword([]byte(password))
+	passwordEncrypt, _ := bcrypt.GenerateFromPassword([]byte(password), 2)
 	return string(passwordEncrypt)
 }
 func SingupUser() gin.HandlerFunc {
@@ -72,6 +69,7 @@ func SingupUser() gin.HandlerFunc {
 			return
 		}
 		ctxdec, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 		countUser, err := TableOpen.CountDocuments(ctxdec, bson.M{
 			"mongoEmail": userStruct.Email,
 		})
@@ -98,7 +96,6 @@ func SingupUser() gin.HandlerFunc {
 			})
 		}
 		c.JSON(http.StatusAccepted, insertVal)
-		defer cancel()
 	}
 
 }
@@ -108,6 +105,7 @@ func Login() gin.HandlerFunc {
 		var userExpected Model.UserDb
 
 		context, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
 		err := TableOpen.FindOne(context, bson.M{
 			"mongoEmail": useractual.Email,
 		}).Decode(&userExpected)
@@ -122,7 +120,6 @@ func Login() gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusAccepted, gin.H{"Message": "Login Successfully"})
-		defer cancel()
 
 		if userExpected.Email == nil {
 			c.JSON(http.StatusBadRequest, gin.H{"Error": "emal not found"})
@@ -157,6 +154,7 @@ func UpdateTokenAfterLogin(access_token string, refresh_token string, userid str
 	if err != nil {
 		log.Fatal("Error while updating the data")
 	}
+	defer cancel()
 
 }
 func CheckPassword(actualPwd string, expectedPwd string) bool {
@@ -167,4 +165,58 @@ func CheckPassword(actualPwd string, expectedPwd string) bool {
 		log.Fatal("*********************************Password is not matched***************************")
 	}
 	return status
+}
+
+func AggreGator() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), time.Millisecond*10)
+		defer cancel()
+		err := helper.CheckUserPermission(c, "ADMIN")
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		recordEntry, err := strconv.Atoi(c.Query("recordEntry"))
+		if err != nil || recordEntry < 1 {
+			recordEntry = 10
+		}
+		recordPage, err := strconv.Atoi(c.Query("Page"))
+		if err != nil || recordPage < 1 {
+			recordPage = 1
+		}
+		matchstage := bson.D{
+			{Key: "$match", Value: bson.D{{}}},
+		}
+		grpStage := bson.D{
+			{Key: "$group", Value: bson.D{
+				{Key: "_id", Value: bson.D{{Key: "_id", Value: "null"}}},
+				{Key: "total_count", Value: bson.D{{Key: "$sum", Value: 1}}},
+				{Key: "data", Value: bson.D{{Key: "$push", Value: "$$ROOT"}}},
+			}},
+		}
+		third := bson.D{
+			{Key: "$project", Value: bson.D{
+				{Key: "_id", Value: 0},
+				{Key: "total_count", Value: 1},
+				{Key: "user_items", Value: bson.D{{Key: "$slice", Value: []interface{}{"$data", recordEntry, recordPage}}}},
+			}},
+		}
+		result, err := TableOpen.Aggregate(ctx, mongo.Pipeline{
+			matchstage, grpStage, third,
+		})
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
+		var users []bson.D
+		errval := result.All(ctx, &users)
+		if errval != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"Error:": "Error in result.All function"})
+		}
+		if len(users) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"Error": "User not found"})
+			return
+		}
+		c.JSON(http.StatusOK, users[0])
+	}
+
 }

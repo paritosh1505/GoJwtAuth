@@ -17,6 +17,32 @@ type UserField struct {
 	jwtToken.RegisteredClaims
 }
 
+func GetClaimfromToken(tokenval string) (claimval *UserField, msg string) {
+	token, err := jwtToken.ParseWithClaims(
+		tokenval,
+		&UserField{},
+		func(token *jwtToken.Token) (interface{}, error) {
+			return []byte(Secret_key), nil
+		},
+	)
+	if err != nil {
+		fmt.Println("Error is ", err.Error())
+		msg = err.Error()
+		return
+	}
+	claim, ok := token.Claims.(*UserField)
+	if !ok {
+		fmt.Println("Invalid token")
+		msg = "Invalid token"
+		return
+	}
+	if claim.ExpiresAt.Time.Before(time.Now()) {
+		fmt.Println("Token is expired")
+		msg = "Token is expired"
+		return
+	}
+	return claim, msg
+}
 func TokenGeneration(name string, email string) (access_token string, refresh_token string, errval error) {
 
 	newclaims := &UserField{

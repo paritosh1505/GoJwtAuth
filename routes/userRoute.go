@@ -8,7 +8,7 @@ import (
 )
 
 func routeUser(incomingReq *gin.Engine) {
-	incomingReq.Use(middleware.Authetication())
-	incomingReq.GET("/usersval", controller.GetUserDetail())
+	incomingReq.Use(middleware.MyAuthentication())
 	incomingReq.GET("/usersval/:userId", controller.GetUserDetail())
+	incomingReq.GET("/usersval", controller.AggreGator())
 }

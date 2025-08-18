@@ -7,18 +7,23 @@ import (
 	"os"
 	"time"
 
+	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func MongoConnect() *mongo.Client {
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatal("Error while opening the env file")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	mongoUri := os.Getenv("MONGO_URL")
 	clientOption := options.Client().ApplyURI(mongoUri)
 	connectDb, err := mongo.Connect(ctx, clientOption)
 	if err != nil {
-		log.Fatal("Error in mongo connection ->", err)
+		log.Fatal("Error in mongo connection may be env file issue->", err)
 	}
 	fmt.Println("Mongo db connection in progress...")
 	//Check connection

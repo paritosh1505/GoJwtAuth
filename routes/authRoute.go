@@ -7,6 +7,6 @@ import (
 )
 
 func AuthSceanrio(incomingReq *gin.Engine) {
-	incomingReq.POST("/user/signup", controller.SingupUser)
-	incomingReq.POST("/user/login", controller.LoginUser)
+	incomingReq.POST("/user/signup", controller.SingupUser())
+	incomingReq.POST("/user/login", controller.Login())
 }

@@ -16,3 +16,12 @@ func MatchUserId(c *gin.Context, userid string) error {
 	}
 	return errorval
 }
+
+func CheckUserPermission(c *gin.Context, userRole string) error {
+	var errorval error = nil
+	if userRole != "ADMIN" {
+		errorval = errors.New("user is not admin hence closing the code")
+		return errorval
+	}
+	return errorval
+}
