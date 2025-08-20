@@ -7,8 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func routeUser(incomingReq *gin.Engine) {
+func RouteUser(incomingReq *gin.Engine) {
 	incomingReq.Use(middleware.MyAuthentication())
-	incomingReq.GET("/usersval/:userId", controller.GetUserDetail())
-	incomingReq.GET("/usersval", controller.AggreGator())
+	incomingReq.GET("/userval/:mongouid", controller.GetUserDetail())
+	incomingReq.GET("/userval", controller.AggreGator())
 }

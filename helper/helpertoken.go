@@ -6,6 +6,7 @@ import (
 	"time"
 
 	jwtToken "github.com/golang-jwt/jwt/v5"
+	"github.com/joho/godotenv"
 )
 
 var Secret_key = os.Getenv("Secret_key")
@@ -18,6 +19,8 @@ type UserField struct {
 }
 
 func GetClaimfromToken(tokenval string) (claimval *UserField, msg string) {
+	_ = godotenv.Load()
+	Secret_key = os.Getenv("SECRET_KEY")
 	token, err := jwtToken.ParseWithClaims(
 		tokenval,
 		&UserField{},
@@ -44,7 +47,8 @@ func GetClaimfromToken(tokenval string) (claimval *UserField, msg string) {
 	return claim, msg
 }
 func TokenGeneration(name string, email string) (access_token string, refresh_token string, errval error) {
-
+	_ = godotenv.Load()
+	var Secret_key = os.Getenv("SECRET_KEY")
 	newclaims := &UserField{
 		Name:  name,
 		Email: email,
@@ -60,15 +64,15 @@ func TokenGeneration(name string, email string) (access_token string, refresh_to
 			Issuer:    "RcikRefreshToken",
 		},
 	}
-	tokenGenerate_access := jwtToken.NewWithClaims(jwtToken.SigningMethodES256, newclaims)
-	tokenGenerate_referesh := jwtToken.NewWithClaims(jwtToken.SigningMethodES256, refreshclaims)
-	access_token, errval = tokenGenerate_access.SignedString(Secret_key)
+	tokenGenerate_access := jwtToken.NewWithClaims(jwtToken.SigningMethodHS256, newclaims)
+	tokenGenerate_referesh := jwtToken.NewWithClaims(jwtToken.SigningMethodHS256, refreshclaims)
+	access_token, errval = tokenGenerate_access.SignedString([]byte(Secret_key))
 	if errval != nil {
-		fmt.Println("Error while generating the access token")
+		fmt.Println("Error while generating the access token. Error is ==> ", errval)
 	}
-	refresh_token, errval = tokenGenerate_referesh.SignedString(Secret_key)
+	refresh_token, errval = tokenGenerate_referesh.SignedString([]byte(Secret_key))
 	if errval != nil {
-		fmt.Println("Error while generating the refresh token")
+		fmt.Println("Error while generating the refresh token. Error is==> ", errval)
 	}
 	return access_token, refresh_token, errval
 

@@ -16,12 +16,14 @@ func MyAuthentication() gin.HandlerFunc {
 		}
 		claims, err := helper.GetClaimfromToken(clientToken)
 		if err != "" {
-			c.JSON(http.StatusBadGateway, gin.H{"Error": "Error while getting claim from token"})
+			c.JSON(http.StatusBadGateway, gin.H{"Error": err})
+			c.Abort()
 			return
 		}
 		c.Set("Name", claims.Name)
 		c.Set("Name", claims.Subject)
 		c.Set("Name", claims.Email)
+
 	}
 
 }

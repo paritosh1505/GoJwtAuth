@@ -25,8 +25,7 @@ var validateVal = validator.New()
 
 func GetUserDetail() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userId := c.Param("user_id")
-
+		userId := c.Param("mongouid")
 		errval := helper.MatchUserId(c, userId)
 		if errval != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": errval.Error()})
@@ -34,10 +33,10 @@ func GetUserDetail() gin.HandlerFunc {
 		}
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
-		var userModel = Model.UserDb{}
-		err := TableOpen.FindOne(ctx, bson.M{"user_id": userId}).Decode(&userModel)
+		var userModel Model.UserDb
+		err := TableOpen.FindOne(ctx, bson.M{"mongouserId": userId}).Decode(&userModel)
 		if err != nil {
-			c.JSON(http.StatusGatewayTimeout, gin.H{
+			c.JSON(http.StatusNotFound, gin.H{
 				"error": "User name not found",
 			})
 			return
@@ -57,14 +56,14 @@ func SingupUser() gin.HandlerFunc {
 		err := c.BindJSON(&userStruct)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": err.Error(),
+				"error while bind Json": err.Error(),
 			})
 			return
 		}
 		errorValidator := validateVal.Struct(userStruct)
 		if errorValidator != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": errorValidator.Error(),
+				"error while validating": errorValidator.Error(),
 			})
 			return
 		}
@@ -74,7 +73,7 @@ func SingupUser() gin.HandlerFunc {
 			"mongoEmail": userStruct.Email,
 		})
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error while checking email": err.Error()})
 		}
 		if countUser > 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"Error": "This user email already exist"})
@@ -103,18 +102,27 @@ func Login() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var useractual Model.UserDb
 		var userExpected Model.UserDb
-
+		err := c.BindJSON(&useractual)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"Bind Error": err.Error()})
+			return
+		}
+		err = validateVal.Struct(&useractual)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"Validateion Error": err.Error()})
+			return
+		}
 		context, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
-		err := TableOpen.FindOne(context, bson.M{
+		fmt.Println("*****************", useractual)
+		err = TableOpen.FindOne(context, bson.M{
 			"mongoEmail": useractual.Email,
 		}).Decode(&userExpected)
 		if err != nil {
-			fmt.Println("**********************Email not found login not possible**********************")
+			c.JSON(http.StatusBadRequest, gin.H{"Doc Error": err.Error()})
 			return
 		}
 		status := CheckPassword(*useractual.Password, *userExpected.Password)
-
 		if !status {
 			c.JSON(http.StatusForbidden, gin.H{"Error": "Invalid Password"})
 			return
@@ -122,7 +130,7 @@ func Login() gin.HandlerFunc {
 		c.JSON(http.StatusAccepted, gin.H{"Message": "Login Successfully"})
 
 		if userExpected.Email == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"Error": "emal not found"})
+			c.JSON(http.StatusBadRequest, gin.H{"Error": "email not found"})
 			log.Panic("Error in missing email")
 		}
 		access_token, refresh_token, _ := helper.TokenGeneration(*userExpected.Name, *userExpected.Email)
@@ -159,10 +167,10 @@ func UpdateTokenAfterLogin(access_token string, refresh_token string, userid str
 }
 func CheckPassword(actualPwd string, expectedPwd string) bool {
 	status := true
-	erroval := bcrypt.CompareHashAndPassword([]byte(actualPwd), []byte(expectedPwd))
+
+	erroval := bcrypt.CompareHashAndPassword([]byte(expectedPwd), []byte(actualPwd))
 	if erroval != nil {
 		status = false
-		log.Fatal("*********************************Password is not matched***************************")
 	}
 	return status
 }
